@@ -218,9 +218,12 @@ header h1 { font-size: 22px; color: #fff; }
         <button class="btn btn-danger hidden" id="btnCancel" style="margin-top: 8px;">
           取消
         </button>
-        <a class="btn btn-primary hidden" id="btnDownload" style="margin-top: 8px; display: inline-block; text-decoration: none; text-align: center;">
+        <button class="btn btn-primary hidden" id="btnDownload" style="margin-top: 8px;">
           保存视频
-        </a>
+        </button>
+        <p class="hidden" id="downloadHint" style="font-size: 11px; color: #f39c12; margin-top: 6px; text-align: center;">
+          QQ/微信浏览器请点右上角「···」选择「在浏览器打开」后下载
+        </p>
       </div>
     </div>
   </div>
@@ -266,6 +269,11 @@ const state = {
   // Processing
   processing: false,
   cancelRequested: false,
+
+  // Output
+  outputBlob: null,
+  outputFileName: '',
+  outputBlobUrl: '',
 
   // Zoom
   zoomLevel: 100,
@@ -690,12 +698,19 @@ async function processVideo() {
 
       const blob = await recordingDone;
 
-      // Show download button
+      // Store blob for download
       const baseName = state.videoFile.name.replace(/\.[^.]+$/, '');
-      const dlBtn = $('btnDownload');
-      dlBtn.href = URL.createObjectURL(blob);
-      dlBtn.download = `${baseName}_clean.${ext}`;
-      dlBtn.classList.remove('hidden');
+      state.outputBlob = blob;
+      state.outputFileName = `${baseName}_clean.${ext}`;
+      state.outputBlobUrl = URL.createObjectURL(blob);
+
+      // Show download button and hint
+      $('btnDownload').classList.remove('hidden');
+      // Detect QQ/WeChat browser
+      const ua = navigator.userAgent.toLowerCase();
+      if (ua.includes('mqqbrowser') || ua.includes('wechat') || ua.includes('micromessenger')) {
+        $('downloadHint').classList.remove('hidden');
+      }
 
       showToast('处理完成！点击"保存视频"下载');
     }
@@ -899,6 +914,35 @@ $('btnProcess').addEventListener('click', processVideo);
 $('btnCancel').addEventListener('click', () => {
   state.cancelRequested = true;
   $('btnCancel').disabled = true;
+});
+
+// Download with fallback for QQ/WeChat browser
+$('btnDownload').addEventListener('click', () => {
+  if (!state.outputBlobUrl) return;
+
+  // Try standard <a download> first
+  try {
+    const a = document.createElement('a');
+    a.href = state.outputBlobUrl;
+    a.download = state.outputFileName;
+    a.style.display = 'none';
+    document.body.appendChild(a);
+    a.click();
+
+    // Check if download actually started (some browsers silently ignore)
+    setTimeout(() => {
+      document.body.removeChild(a);
+    }, 1000);
+
+    // Show fallback hint after a moment
+    setTimeout(() => {
+      $('downloadHint').classList.remove('hidden');
+    }, 2000);
+  } catch (e) {
+    // Fallback: open video in new tab for long-press save
+    window.open(state.outputBlobUrl, '_blank');
+    $('downloadHint').classList.remove('hidden');
+  }
 });
 </script>
 </body>
