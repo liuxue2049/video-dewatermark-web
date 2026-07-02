@@ -559,9 +559,10 @@ function setupCanvas() {
   state.baseDisplayHeight = rect.height;
   state.zoomLevel = 100;
 
-  // Show zoom controls and draw hint
+  // Show zoom controls and draw hint (auto-hide after 3s)
   $('zoomControls').classList.remove('hidden');
   $('drawHint').classList.remove('hidden');
+  setTimeout(() => $('drawHint').classList.add('hidden'), 3000);
 
   // Overlay canvas matches display size
   resizeOverlay();
@@ -629,6 +630,7 @@ function paintBrush(x, y) {
 
 videoCanvas.addEventListener('mousedown', (e) => {
   if (!state.video) return;
+  $('drawHint').classList.add('hidden');
   state.isDrawing = true;
   const pos = getCanvasCoords(e);
 
