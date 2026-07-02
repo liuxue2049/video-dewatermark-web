@@ -762,17 +762,31 @@ function drawRoiOverlay() {
   if (state.selectionMode === 'brush' && state.brushMask) {
     ctx.drawImage(state.brushMask, 0, 0, roiOverlay.width, roiOverlay.height);
     ctx.globalCompositeOperation = 'source-in';
-    ctx.fillStyle = 'rgba(255, 60, 60, 0.5)';
+    ctx.fillStyle = 'rgba(255, 50, 50, 0.6)';
     ctx.fillRect(0, 0, roiOverlay.width, roiOverlay.height);
     ctx.globalCompositeOperation = 'source-over';
   }
 
   const drawRect = (x, y, w, h) => {
-    ctx.strokeStyle = '#ff3c3c';
-    ctx.lineWidth = 2;
-    ctx.fillStyle = 'rgba(255, 60, 60, 0.15)';
+    // Semi-transparent red fill
+    ctx.fillStyle = 'rgba(255, 50, 50, 0.25)';
     ctx.fillRect(x, y, w, h);
+    // Thick red border
+    ctx.strokeStyle = '#ff3333';
+    ctx.lineWidth = 3;
     ctx.strokeRect(x, y, w, h);
+    // Corner markers
+    const cs = 12;
+    ctx.strokeStyle = '#fff';
+    ctx.lineWidth = 2;
+    // Top-left
+    ctx.beginPath(); ctx.moveTo(x, y + cs); ctx.lineTo(x, y); ctx.lineTo(x + cs, y); ctx.stroke();
+    // Top-right
+    ctx.beginPath(); ctx.moveTo(x + w - cs, y); ctx.lineTo(x + w, y); ctx.lineTo(x + w, y + cs); ctx.stroke();
+    // Bottom-left
+    ctx.beginPath(); ctx.moveTo(x, y + h - cs); ctx.lineTo(x, y + h); ctx.lineTo(x + cs, y + h); ctx.stroke();
+    // Bottom-right
+    ctx.beginPath(); ctx.moveTo(x + w - cs, y + h); ctx.lineTo(x + w, y + h); ctx.lineTo(x + w, y + h - cs); ctx.stroke();
   };
 
   if (state.isDrawing && state.drawStart && state.drawEnd) {
