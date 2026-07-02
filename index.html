@@ -518,6 +518,9 @@ function loadVideo(file) {
     $('videoInfoCard').classList.remove('hidden');
     $('roiCard').classList.remove('hidden');
 
+    // Now resize overlay after canvas is visible
+    resizeOverlay();
+
     // Update info
     $('infoName').textContent = file.name;
     $('infoRes').textContent = `${state.videoWidth} x ${state.videoHeight}`;
@@ -564,8 +567,7 @@ function setupCanvas() {
   $('drawHint').classList.remove('hidden');
   setTimeout(() => $('drawHint').classList.add('hidden'), 3000);
 
-  // Overlay canvas matches display size
-  resizeOverlay();
+  // Overlay canvas will be resized after videoCanvas is made visible
   state.overlayCtx = roiOverlay.getContext('2d');
 
   window.addEventListener('resize', resizeOverlay);
