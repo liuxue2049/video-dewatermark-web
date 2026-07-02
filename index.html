@@ -350,6 +350,9 @@ footer a { color: #3498db; text-decoration: none; }
         <button class="btn btn-danger hidden" id="btnCancel" style="margin-top: 8px;">
           取消
         </button>
+        <a class="btn btn-primary hidden" id="btnDownload" style="margin-top: 8px; display: inline-block; text-decoration: none; text-align: center;">
+          保存视频
+        </a>
       </div>
     </div>
   </div>
@@ -449,7 +452,7 @@ function onOpenCvReady() {
   if (typeof cv !== 'undefined' && cv.Mat) {
     state.cvReady = true;
     console.log('[OpenCV] Ready');
-    showToast('OpenCV loaded!');
+    showToast('OpenCV 已就绪');
     updateProcessButton();
   } else {
     // OpenCV.js may need a moment to fully initialize
@@ -462,7 +465,7 @@ function onOpenCvReady() {
 // ============================================================
 function loadVideo(file) {
   if (!file || !file.type.startsWith('video/')) {
-    showToast('Please select a valid video file', true);
+    showToast('请选择有效的视频文件', true);
     return;
   }
 
@@ -513,11 +516,11 @@ function loadVideo(file) {
     // Draw first frame
     seekToFrame(0);
     updateSteps();
-    showToast('Video loaded! Now select the watermark area.');
+    showToast('视频已加载！请选择水印区域');
   });
 
   video.addEventListener('error', () => {
-    showToast('Failed to load video', true);
+    showToast('视频加载失败', true);
   });
 }
 
@@ -865,7 +868,7 @@ async function processVideo() {
     for (let i = 0; i < totalFrames; i++) {
       if (state.cancelRequested) {
         recorder.stop();
-        showToast('Processing cancelled');
+        showToast('已取消处理');
         break;
       }
 
@@ -897,21 +900,19 @@ async function processVideo() {
 
       const blob = await recordingDone;
 
-      // Create download link
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
+      // Show download button
       const baseName = state.videoFile.name.replace(/\.[^.]+$/, '');
-      a.download = `${baseName}_clean.${ext}`;
-      a.click();
-      URL.revokeObjectURL(url);
+      const dlBtn = $('btnDownload');
+      dlBtn.href = URL.createObjectURL(blob);
+      dlBtn.download = `${baseName}_clean.${ext}`;
+      dlBtn.classList.remove('hidden');
 
-      showToast('Processing complete! Download started.');
+      showToast('处理完成！点击"保存视频"下载');
     }
 
   } catch (err) {
     console.error('[Process] Error:', err);
-    showToast('Processing error: ' + err.message, true);
+    showToast('处理出错: ' + err.message, true);
   }
 
   state.processing = false;
