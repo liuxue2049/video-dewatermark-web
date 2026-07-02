@@ -122,15 +122,6 @@ header p { color: #888; font-size: 14px; }
 .brush-row input[type=range] { flex: 1; }
 .brush-row .val { font-size: 11px; color: #aaa; min-width: 28px; text-align: right; }
 
-/* Draw hint overlay */
-.draw-hint {
-  position: absolute; bottom: 16px; left: 50%; transform: translateX(-50%);
-  background: rgba(0,0,0,0.7); border-radius: 8px; padding: 10px 20px;
-  text-align: center; color: #fff; font-size: 13px; pointer-events: none;
-  z-index: 10; white-space: nowrap;
-}
-.draw-hint-icon { font-size: 24px; margin-bottom: 4px; }
-
 /* Frame slider */
 .frame-nav {
   display: flex; align-items: center; gap: 8px;
@@ -262,10 +253,6 @@ footer a { color: #3498db; text-decoration: none; }
         </div>
         <canvas id="videoCanvas" class="hidden"></canvas>
         <canvas id="roiOverlay"></canvas>
-        <div class="draw-hint hidden" id="drawHint">
-          <div class="draw-hint-icon">&#9995;</div>
-          <p>在视频上按住并拖动，框选水印区域</p>
-        </div>
       </div>
 
       <div class="frame-nav hidden" id="frameNav">
@@ -562,9 +549,8 @@ function setupCanvas() {
   state.baseDisplayHeight = rect.height;
   state.zoomLevel = 100;
 
-  // Show zoom controls and draw hint (stays until user starts drawing)
+  // Show zoom controls
   $('zoomControls').classList.remove('hidden');
-  $('drawHint').classList.remove('hidden');
 
   // Overlay canvas will be resized after videoCanvas is made visible
   state.overlayCtx = roiOverlay.getContext('2d');
@@ -636,7 +622,6 @@ function paintBrush(x, y) {
 
 videoCanvas.addEventListener('mousedown', (e) => {
   if (!state.video) return;
-  $('drawHint').classList.add('hidden');
   state.isDrawing = true;
   const pos = getCanvasCoords(e);
 
@@ -676,7 +661,6 @@ videoCanvas.addEventListener('mouseup', (e) => {
     updateSteps();
     updateProcessButton();
     drawRoiOverlay();
-    $('drawHint').classList.add('hidden');
     showToast('选区已标记，可以开始处理了');
   } else {
     state.drawEnd = getCanvasCoords(e);
@@ -722,7 +706,6 @@ videoCanvas.addEventListener('touchstart', (e) => {
     pinchStartZoom = state.zoomLevel || 100;
   } else if (e.touches.length === 1) {
     // Single finger: draw ROI
-    $('drawHint').classList.add('hidden');
     const touch = e.touches[0];
     lastTouchPos = { clientX: touch.clientX, clientY: touch.clientY };
     videoCanvas.dispatchEvent(new MouseEvent('mousedown', { clientX: touch.clientX, clientY: touch.clientY }));
@@ -1138,7 +1121,6 @@ $('btnModeRect').addEventListener('click', () => {
   $('brushControls').classList.remove('visible');
   $('roiSliders').classList.remove('visible');
   $('roiInstruction').textContent = '在视频上按住拖动，框选水印位置';
-  $('drawHint').querySelector('p').textContent = '在视频上按住并拖动，框选水印区域';
   videoCanvas.style.cursor = 'crosshair';
   drawRoiOverlay();
 });
@@ -1150,8 +1132,6 @@ $('btnModeBrush').addEventListener('click', () => {
   $('brushControls').classList.add('visible');
   $('roiSliders').classList.remove('visible');
   $('roiInstruction').textContent = '在视频上用手指涂抹水印区域';
-  $('drawHint').querySelector('p').textContent = '在视频上涂抹水印区域';
-  $('drawHint').classList.remove('hidden');
   videoCanvas.style.cursor = 'pointer';
   drawRoiOverlay();
 });
