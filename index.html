@@ -573,6 +573,11 @@ function setupCanvas() {
 
 function resizeOverlay() {
   const rect = videoCanvas.getBoundingClientRect();
+  const containerRect = videoContainer.getBoundingClientRect();
+
+  // Position overlay to match videoCanvas within the flex container
+  roiOverlay.style.top = (rect.top - containerRect.top) + 'px';
+  roiOverlay.style.left = (rect.left - containerRect.left) + 'px';
   roiOverlay.width = rect.width;
   roiOverlay.height = rect.height;
   roiOverlay.style.width = rect.width + 'px';
@@ -670,8 +675,8 @@ videoCanvas.addEventListener('mouseup', (e) => {
     updateSteps();
     updateProcessButton();
     drawRoiOverlay();
-    // Hide draw hint after first brush stroke
     $('drawHint').classList.add('hidden');
+    showToast('选区已标记，可以开始处理了');
   } else {
     state.drawEnd = getCanvasCoords(e);
     const x1 = Math.min(state.drawStart.x, state.drawEnd.x);
@@ -687,6 +692,7 @@ videoCanvas.addEventListener('mouseup', (e) => {
       updateRoiSliders(state.roi);
       updateSteps();
       updateProcessButton();
+      showToast('选区已确认，可以开始处理了');
     }
 
     state.drawStart = null;
