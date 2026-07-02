@@ -562,10 +562,9 @@ function setupCanvas() {
   state.baseDisplayHeight = rect.height;
   state.zoomLevel = 100;
 
-  // Show zoom controls and draw hint (auto-hide after 3s)
+  // Show zoom controls and draw hint (stays until user starts drawing)
   $('zoomControls').classList.remove('hidden');
   $('drawHint').classList.remove('hidden');
-  setTimeout(() => $('drawHint').classList.add('hidden'), 3000);
 
   // Overlay canvas will be resized after videoCanvas is made visible
   state.overlayCtx = roiOverlay.getContext('2d');
@@ -723,6 +722,7 @@ videoCanvas.addEventListener('touchstart', (e) => {
     pinchStartZoom = state.zoomLevel || 100;
   } else if (e.touches.length === 1) {
     // Single finger: draw ROI
+    $('drawHint').classList.add('hidden');
     const touch = e.touches[0];
     lastTouchPos = { clientX: touch.clientX, clientY: touch.clientY };
     videoCanvas.dispatchEvent(new MouseEvent('mousedown', { clientX: touch.clientX, clientY: touch.clientY }));
