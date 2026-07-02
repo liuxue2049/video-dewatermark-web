@@ -69,9 +69,6 @@ header p { color: #888; font-size: 14px; }
 #videoCanvas {
   max-width: 100%; max-height: 500px; display: block;
 }
-#roiOverlay {
-  position: absolute; top: 0; left: 0; pointer-events: none;
-}
 
 /* Zoom controls */
 .zoom-controls {
@@ -252,7 +249,6 @@ footer a { color: #3498db; text-decoration: none; }
           <input type="file" id="fileInput" accept="video/*" style="display:none">
         </div>
         <canvas id="videoCanvas" class="hidden"></canvas>
-        <canvas id="roiOverlay"></canvas>
       </div>
 
       <div class="frame-nav hidden" id="frameNav">
@@ -412,7 +408,6 @@ const state = {
 
   // Canvas contexts
   ctx: null,
-  overlayCtx: null,
 };
 
 // ============================================================
@@ -421,7 +416,6 @@ const state = {
 const $ = (id) => document.getElementById(id);
 const videoContainer = $('videoContainer');
 const videoCanvas = $('videoCanvas');
-const roiOverlay = $('roiOverlay');
 const uploadPrompt = $('uploadPrompt');
 const fileInput = $('fileInput');
 const frameNav = $('frameNav');
@@ -505,9 +499,6 @@ function loadVideo(file) {
     $('videoInfoCard').classList.remove('hidden');
     $('roiCard').classList.remove('hidden');
 
-    // Now resize overlay after canvas is visible
-    resizeOverlay();
-
     // Update info
     $('infoName').textContent = file.name;
     $('infoRes').textContent = `${state.videoWidth} x ${state.videoHeight}`;
@@ -551,25 +542,6 @@ function setupCanvas() {
 
   // Show zoom controls
   $('zoomControls').classList.remove('hidden');
-
-  // Overlay canvas will be resized after videoCanvas is made visible
-  state.overlayCtx = roiOverlay.getContext('2d');
-
-  window.addEventListener('resize', resizeOverlay);
-}
-
-function resizeOverlay() {
-  const rect = videoCanvas.getBoundingClientRect();
-  const containerRect = videoContainer.getBoundingClientRect();
-
-  // Position overlay to match videoCanvas within the flex container
-  roiOverlay.style.top = (rect.top - containerRect.top) + 'px';
-  roiOverlay.style.left = (rect.left - containerRect.left) + 'px';
-  roiOverlay.width = rect.width;
-  roiOverlay.height = rect.height;
-  roiOverlay.style.width = rect.width + 'px';
-  roiOverlay.style.height = rect.height + 'px';
-  drawRoiOverlay();
 }
 
 // ============================================================
@@ -599,16 +571,6 @@ function getCanvasCoords(e) {
   return {
     x: Math.round((e.clientX - rect.left) * scaleX),
     y: Math.round((e.clientY - rect.top) * scaleY),
-  };
-}
-
-function getOverlayCoords(videoX, videoY) {
-  const rect = videoCanvas.getBoundingClientRect();
-  const scaleX = rect.width / state.videoWidth;
-  const scaleY = rect.height / state.videoHeight;
-  return {
-    x: videoX * scaleX,
-    y: videoY * scaleY,
   };
 }
 
@@ -747,52 +709,49 @@ videoCanvas.addEventListener('touchend', (e) => {
 });
 
 function drawRoiOverlay() {
-  if (!state.overlayCtx) return;
-  const ctx = state.overlayCtx;
-  ctx.clearRect(0, 0, roiOverlay.width, roiOverlay.height);
+  if (!state.ctx) return;
+  const ctx = state.ctx;
+
+  // Redraw video frame first
+  if (state.video) {
+    ctx.drawImage(state.video, 0, 0, state.videoWidth, state.videoHeight);
+  }
 
   // Draw brush mask overlay
   if (state.selectionMode === 'brush' && state.brushMask) {
-    ctx.drawImage(state.brushMask, 0, 0, roiOverlay.width, roiOverlay.height);
-    ctx.globalCompositeOperation = 'source-in';
-    ctx.fillStyle = 'rgba(255, 50, 50, 0.6)';
-    ctx.fillRect(0, 0, roiOverlay.width, roiOverlay.height);
+    ctx.globalAlpha = 0.4;
+    ctx.drawImage(state.brushMask, 0, 0);
+    // Tint red using source-atop
+    ctx.globalCompositeOperation = 'source-atop';
+    ctx.fillStyle = 'rgba(255, 50, 50, 0.5)';
+    ctx.fillRect(0, 0, state.videoWidth, state.videoHeight);
     ctx.globalCompositeOperation = 'source-over';
+    ctx.globalAlpha = 1.0;
   }
 
+  // Draw rectangle (using video coordinates directly)
   const drawRect = (x, y, w, h) => {
-    // Semi-transparent red fill
     ctx.fillStyle = 'rgba(255, 50, 50, 0.25)';
     ctx.fillRect(x, y, w, h);
-    // Thick red border
     ctx.strokeStyle = '#ff3333';
-    ctx.lineWidth = 3;
+    ctx.lineWidth = 4;
     ctx.strokeRect(x, y, w, h);
     // Corner markers
-    const cs = 12;
+    const cs = 20;
     ctx.strokeStyle = '#fff';
-    ctx.lineWidth = 2;
-    // Top-left
+    ctx.lineWidth = 3;
     ctx.beginPath(); ctx.moveTo(x, y + cs); ctx.lineTo(x, y); ctx.lineTo(x + cs, y); ctx.stroke();
-    // Top-right
     ctx.beginPath(); ctx.moveTo(x + w - cs, y); ctx.lineTo(x + w, y); ctx.lineTo(x + w, y + cs); ctx.stroke();
-    // Bottom-left
     ctx.beginPath(); ctx.moveTo(x, y + h - cs); ctx.lineTo(x, y + h); ctx.lineTo(x + cs, y + h); ctx.stroke();
-    // Bottom-right
     ctx.beginPath(); ctx.moveTo(x + w - cs, y + h); ctx.lineTo(x + w, y + h); ctx.lineTo(x + w, y + h - cs); ctx.stroke();
   };
 
   if (state.isDrawing && state.drawStart && state.drawEnd) {
-    const p1 = getOverlayCoords(state.drawStart.x, state.drawStart.y);
-    const p2 = getOverlayCoords(state.drawEnd.x, state.drawEnd.y);
-    drawRect(
-      Math.min(p1.x, p2.x), Math.min(p1.y, p2.y),
-      Math.abs(p2.x - p1.x), Math.abs(p2.y - p1.y)
-    );
+    const x1 = Math.min(state.drawStart.x, state.drawEnd.x);
+    const y1 = Math.min(state.drawStart.y, state.drawEnd.y);
+    drawRect(x1, y1, Math.abs(state.drawEnd.x - state.drawStart.x), Math.abs(state.drawEnd.y - state.drawStart.y));
   } else if (state.roi) {
-    const p = getOverlayCoords(state.roi.x, state.roi.y);
-    const s = getOverlayCoords(state.roi.x + state.roi.w, state.roi.y + state.roi.h);
-    drawRect(p.x, p.y, s.x - p.x, s.y - p.y);
+    drawRect(state.roi.x, state.roi.y, state.roi.w, state.roi.h);
   }
 }
 
@@ -800,7 +759,6 @@ function applyZoom(zoomPercent) {
   const scale = zoomPercent / 100;
   videoCanvas.style.maxWidth = (state.baseDisplayWidth * scale) + 'px';
   videoCanvas.style.maxHeight = (state.baseDisplayHeight * scale) + 'px';
-  resizeOverlay();
 }
 
 // Zoom slider
