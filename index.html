@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Video Watermark Remover</title>
+<title>视频去水印工具</title>
 <style>
 * { margin: 0; padding: 0; box-sizing: border-box; }
 body {
@@ -95,6 +95,41 @@ header p { color: #888; font-size: 14px; }
 .roi-slider-row .label { font-size: 11px; color: #888; min-width: 20px; }
 .roi-slider-row input[type=range] { flex: 1; }
 .roi-slider-row .val { font-size: 11px; color: #aaa; min-width: 40px; text-align: right; }
+
+/* Mode toggle */
+.mode-toggle {
+  display: flex; gap: 6px; margin-bottom: 10px;
+}
+.mode-btn {
+  flex: 1; padding: 8px 6px; border: 1px solid #555; border-radius: 6px;
+  background: transparent; color: #aaa; font-size: 12px; cursor: pointer;
+  text-align: center; transition: all 0.2s;
+}
+.mode-btn.active {
+  border-color: #3498db; background: rgba(52, 152, 219, 0.15); color: #fff;
+}
+.mode-btn:hover { border-color: #888; }
+
+/* Brush controls */
+.brush-controls {
+  display: none; margin-top: 8px;
+}
+.brush-controls.visible { display: block; }
+.brush-row {
+  display: flex; align-items: center; gap: 6px; margin-bottom: 8px;
+}
+.brush-row .label { font-size: 11px; color: #888; min-width: 32px; }
+.brush-row input[type=range] { flex: 1; }
+.brush-row .val { font-size: 11px; color: #aaa; min-width: 28px; text-align: right; }
+
+/* Draw hint overlay */
+.draw-hint {
+  position: absolute; bottom: 16px; left: 50%; transform: translateX(-50%);
+  background: rgba(0,0,0,0.7); border-radius: 8px; padding: 10px 20px;
+  text-align: center; color: #fff; font-size: 13px; pointer-events: none;
+  z-index: 10; white-space: nowrap;
+}
+.draw-hint-icon { font-size: 24px; margin-bottom: 4px; }
 
 /* Frame slider */
 .frame-nav {
@@ -199,19 +234,19 @@ footer a { color: #3498db; text-decoration: none; }
 
 <div class="container">
   <header>
-    <h1>Video Watermark Remover</h1>
-    <p>Fast watermark removal, all processing in your browser. No uploads.</p>
+    <h1>视频去水印</h1>
+    <p>快速去除视频水印，所有处理在浏览器本地完成，不上传任何数据。</p>
   </header>
 
   <div class="steps">
     <div class="step active" id="step1">
-      <span class="step-num">1</span> Open Video
+      <span class="step-num">1</span> 打开视频
     </div>
     <div class="step" id="step2">
-      <span class="step-num">2</span> Select Area
+      <span class="step-num">2</span> 选择区域
     </div>
     <div class="step" id="step3">
-      <span class="step-num">3</span> Process
+      <span class="step-num">3</span> 开始处理
     </div>
   </div>
 
@@ -221,12 +256,16 @@ footer a { color: #3498db; text-decoration: none; }
       <div class="video-container" id="videoContainer">
         <div class="upload-prompt" id="uploadPrompt">
           <div class="icon">&#128249;</div>
-          <p><strong>Drop video here or click to open</strong></p>
-          <p class="hint">Supports MP4, WebM, AVI (max 500MB recommended)</p>
+          <p><strong>点击此处选择视频或拖拽到这里</strong></p>
+          <p class="hint">支持 MP4, WebM, AVI 格式</p>
           <input type="file" id="fileInput" accept="video/*" style="display:none">
         </div>
         <canvas id="videoCanvas" class="hidden"></canvas>
         <canvas id="roiOverlay"></canvas>
+        <div class="draw-hint hidden" id="drawHint">
+          <div class="draw-hint-icon">&#9995;</div>
+          <p>在视频上按住并拖动，框选水印区域</p>
+        </div>
       </div>
 
       <div class="frame-nav hidden" id="frameNav">
@@ -247,35 +286,47 @@ footer a { color: #3498db; text-decoration: none; }
     <div class="panel">
       <!-- Algorithm Card -->
       <div class="card">
-        <h3>Algorithm</h3>
+        <h3>算法</h3>
         <div class="model-status" id="modelStatus">
           <span class="dot dot-green"></span>
-          <span>OpenCV Inpainting - Ready</span>
+          <span>OpenCV 图像修复 - 就绪</span>
         </div>
         <p style="font-size: 11px; color: #666; margin-top: 6px;" id="modelHint">
-          Fast image repair, no model download needed
+          无需下载模型，快速处理
         </p>
       </div>
 
       <!-- Video Info Card -->
       <div class="card hidden" id="videoInfoCard">
-        <h3>Video Info</h3>
+        <h3>视频信息</h3>
         <div class="info">
-          <div><span class="label">File: </span><span id="infoName">-</span></div>
-          <div><span class="label">Resolution: </span><span id="infoRes">-</span></div>
-          <div><span class="label">FPS: </span><span id="infoFps">-</span></div>
-          <div><span class="label">Frames: </span><span id="infoFrames">-</span></div>
-          <div><span class="label">Duration: </span><span id="infoDuration">-</span></div>
+          <div><span class="label">文件: </span><span id="infoName">-</span></div>
+          <div><span class="label">分辨率: </span><span id="infoRes">-</span></div>
+          <div><span class="label">帧率: </span><span id="infoFps">-</span></div>
+          <div><span class="label">帧数: </span><span id="infoFrames">-</span></div>
+          <div><span class="label">时长: </span><span id="infoDuration">-</span></div>
         </div>
       </div>
 
       <!-- ROI Card -->
       <div class="card hidden" id="roiCard">
-        <h3>Watermark Area</h3>
-        <p style="font-size: 12px; color: #888; margin-bottom: 8px;">
-          Drag on the video to select the watermark region
+        <h3>水印区域</h3>
+        <div class="mode-toggle">
+          <button class="mode-btn active" id="btnModeRect">矩形框选</button>
+          <button class="mode-btn" id="btnModeBrush">画笔涂抹</button>
+        </div>
+        <div class="brush-controls" id="brushControls">
+          <div class="brush-row">
+            <span class="label">笔刷</span>
+            <input type="range" id="brushSizeSlider" min="10" max="100" value="30">
+            <span class="val" id="brushSizeVal">30</span>
+          </div>
+          <p style="font-size: 11px; color: #888; margin-bottom: 6px;">在视频上用手指涂抹水印区域</p>
+        </div>
+        <p style="font-size: 12px; color: #888; margin-bottom: 8px;" id="roiInstruction">
+          在视频上按住拖动，框选水印位置
         </p>
-        <div class="roi-display" id="roiDisplay">Not selected</div>
+        <div class="roi-display" id="roiDisplay">未选择</div>
         <div class="roi-sliders" id="roiSliders">
           <div class="roi-slider-row">
             <span class="label">X</span>
@@ -299,30 +350,30 @@ footer a { color: #3498db; text-decoration: none; }
           </div>
         </div>
         <button class="btn btn-outline" id="btnClearRoi" style="margin-top: 8px;">
-          Clear Selection
+          清除选区
         </button>
       </div>
 
       <!-- Process Card -->
       <div class="card">
-        <h3>Processing</h3>
+        <h3>处理</h3>
         <div class="progress-bar hidden" id="processProgress">
           <div class="fill"></div>
         </div>
         <div class="progress-text hidden" id="processProgressText"></div>
         <button class="btn btn-success" id="btnProcess" disabled style="margin-top: 8px;">
-          Start Processing
+          开始处理
         </button>
         <button class="btn btn-danger hidden" id="btnCancel" style="margin-top: 8px;">
-          Cancel
+          取消
         </button>
       </div>
     </div>
   </div>
 
   <footer>
-    <p>Video Watermark Remover &middot; Powered by <a href="https://opencv.org" target="_blank">OpenCV</a> Inpainting</p>
-    <p style="margin-top: 4px;">All processing happens in your browser. No data is uploaded.</p>
+    <p>视频去水印工具 &middot; 基于 <a href="https://opencv.org" target="_blank">OpenCV</a> 图像修复</p>
+    <p style="margin-top: 4px;">所有处理在浏览器本地完成，不会上传任何数据。</p>
   </footer>
 </div>
 
@@ -351,6 +402,12 @@ const state = {
 
   // ROI (in video coordinates)
   roi: null,               // { x, y, w, h }
+
+  // Selection mode
+  selectionMode: 'rect',   // 'rect' or 'brush'
+  brushSize: 30,           // brush radius in video pixels
+  brushMask: null,         // offscreen canvas for brush mask
+  brushCtx: null,          // brush mask canvas context
 
   // Drawing state
   isDrawing: false,
@@ -489,14 +546,22 @@ function setupCanvas() {
   videoCanvas.height = state.videoHeight;
   state.ctx = videoCanvas.getContext('2d');
 
+  // Brush mask canvas at video resolution (offscreen)
+  state.brushMask = document.createElement('canvas');
+  state.brushMask.width = state.videoWidth;
+  state.brushMask.height = state.videoHeight;
+  state.brushCtx = state.brushMask.getContext('2d');
+  state.brushCtx.fillStyle = '#ffffff'; // opaque white for mask
+
   // Save base display dimensions (at 100% zoom)
   const rect = videoCanvas.getBoundingClientRect();
   state.baseDisplayWidth = rect.width;
   state.baseDisplayHeight = rect.height;
   state.zoomLevel = 100;
 
-  // Show zoom controls
+  // Show zoom controls and draw hint
   $('zoomControls').classList.remove('hidden');
+  $('drawHint').classList.remove('hidden');
 
   // Overlay canvas matches display size
   resizeOverlay();
@@ -554,44 +619,78 @@ function getOverlayCoords(videoX, videoY) {
   };
 }
 
+function paintBrush(x, y) {
+  if (!state.brushCtx) return;
+  const r = state.brushSize;
+  state.brushCtx.beginPath();
+  state.brushCtx.arc(x, y, r, 0, Math.PI * 2);
+  state.brushCtx.fill();
+}
+
 videoCanvas.addEventListener('mousedown', (e) => {
   if (!state.video) return;
   state.isDrawing = true;
-  state.drawStart = getCanvasCoords(e);
-  state.drawEnd = state.drawStart;
-  state.roi = null;
-  drawRoiOverlay();
+  const pos = getCanvasCoords(e);
+
+  if (state.selectionMode === 'brush') {
+    paintBrush(pos.x, pos.y);
+    drawRoiOverlay();
+  } else {
+    state.drawStart = pos;
+    state.drawEnd = pos;
+    state.roi = null;
+    drawRoiOverlay();
+  }
 });
 
 videoCanvas.addEventListener('mousemove', (e) => {
   if (!state.isDrawing) return;
-  state.drawEnd = getCanvasCoords(e);
-  drawRoiOverlay();
+  const pos = getCanvasCoords(e);
+
+  if (state.selectionMode === 'brush') {
+    paintBrush(pos.x, pos.y);
+    drawRoiOverlay();
+  } else {
+    state.drawEnd = pos;
+    drawRoiOverlay();
+  }
 });
 
 videoCanvas.addEventListener('mouseup', (e) => {
   if (!state.isDrawing) return;
   state.isDrawing = false;
-  state.drawEnd = getCanvasCoords(e);
 
-  const x1 = Math.min(state.drawStart.x, state.drawEnd.x);
-  const y1 = Math.min(state.drawStart.y, state.drawEnd.y);
-  const w = Math.abs(state.drawEnd.x - state.drawStart.x);
-  const h = Math.abs(state.drawEnd.y - state.drawStart.y);
-
-  if (w > 10 && h > 10) {
-    state.roi = { x: x1, y: y1, w, h };
-    $('roiDisplay').textContent = `x: ${x1}, y: ${y1}, w: ${w}, h: ${h}`;
+  if (state.selectionMode === 'brush') {
+    state.roi = null;
+    $('roiDisplay').textContent = '画笔选区';
     $('roiDisplay').className = 'roi-display selected';
-    console.log(`[ROI] x=${x1}, y=${y1}, w=${w}, h=${h}`);
-    updateRoiSliders(state.roi);
+    $('roiSliders').classList.remove('visible');
     updateSteps();
     updateProcessButton();
-  }
+    drawRoiOverlay();
+    // Hide draw hint after first brush stroke
+    $('drawHint').classList.add('hidden');
+  } else {
+    state.drawEnd = getCanvasCoords(e);
+    const x1 = Math.min(state.drawStart.x, state.drawEnd.x);
+    const y1 = Math.min(state.drawStart.y, state.drawEnd.y);
+    const w = Math.abs(state.drawEnd.x - state.drawStart.x);
+    const h = Math.abs(state.drawEnd.y - state.drawStart.y);
 
-  state.drawStart = null;
-  state.drawEnd = null;
-  drawRoiOverlay();
+    if (w > 10 && h > 10) {
+      state.roi = { x: x1, y: y1, w, h };
+      $('roiDisplay').textContent = `x: ${x1}, y: ${y1}, w: ${w}, h: ${h}`;
+      $('roiDisplay').className = 'roi-display selected';
+      console.log(`[ROI] x=${x1}, y=${y1}, w=${w}, h=${h}`);
+      updateRoiSliders(state.roi);
+      updateSteps();
+      updateProcessButton();
+    }
+
+    state.drawStart = null;
+    state.drawEnd = null;
+    drawRoiOverlay();
+  }
 });
 
 // Touch support with pinch-to-zoom
@@ -658,6 +757,15 @@ function drawRoiOverlay() {
   if (!state.overlayCtx) return;
   const ctx = state.overlayCtx;
   ctx.clearRect(0, 0, roiOverlay.width, roiOverlay.height);
+
+  // Draw brush mask overlay
+  if (state.selectionMode === 'brush' && state.brushMask) {
+    ctx.drawImage(state.brushMask, 0, 0, roiOverlay.width, roiOverlay.height);
+    ctx.globalCompositeOperation = 'source-in';
+    ctx.fillStyle = 'rgba(255, 60, 60, 0.5)';
+    ctx.fillRect(0, 0, roiOverlay.width, roiOverlay.height);
+    ctx.globalCompositeOperation = 'source-over';
+  }
 
   const drawRect = (x, y, w, h) => {
     ctx.strokeStyle = '#ff3c3c';
@@ -746,7 +854,7 @@ function onRoiSliderChange() {
 // Video Processing (Inpainting)
 // ============================================================
 async function processVideo() {
-  if (!state.cvReady || !state.roi || !state.video) return;
+  if (!state.cvReady || !hasSelection() || !state.video) return;
 
   state.processing = true;
   state.cancelRequested = false;
@@ -852,6 +960,15 @@ function createMask() {
   const w = state.videoWidth;
   const mask = new Uint8Array(h * w); // 0 = keep, 255 = inpaint
 
+  if (state.selectionMode === 'brush' && state.brushCtx) {
+    // Read brush mask canvas pixels
+    const imgData = state.brushCtx.getImageData(0, 0, w, h);
+    for (let i = 0; i < h * w; i++) {
+      mask[i] = imgData.data[i * 4 + 3] > 128 ? 255 : 0; // alpha channel
+    }
+    return mask;
+  }
+
   if (!state.roi) return mask;
 
   const { x, y, w: rw, h: rh } = state.roi;
@@ -924,15 +1041,28 @@ function formatTime(seconds) {
   return `${m}:${s.toString().padStart(2, '0')}`;
 }
 
+function hasSelection() {
+  if (state.selectionMode === 'brush') {
+    // Check if brush mask has any painted pixels
+    if (!state.brushCtx) return false;
+    const data = state.brushCtx.getImageData(0, 0, state.videoWidth, state.videoHeight).data;
+    for (let i = 3; i < data.length; i += 400) { // sample every 100th pixel for speed
+      if (data[i] > 128) return true;
+    }
+    return false;
+  }
+  return !!state.roi;
+}
+
 function updateSteps() {
   let step = 1;
   if (state.video) step = 2;
-  if (state.roi) step = 3;
+  if (hasSelection()) step = 3;
   setStep(step);
 }
 
 function updateProcessButton() {
-  $('btnProcess').disabled = !(state.cvReady && state.video && state.roi);
+  $('btnProcess').disabled = !(state.cvReady && state.video && hasSelection());
 }
 
 // ============================================================
@@ -976,12 +1106,48 @@ $('btnNext').addEventListener('click', () => {
   }
 });
 
+// Mode toggle
+$('btnModeRect').addEventListener('click', () => {
+  state.selectionMode = 'rect';
+  $('btnModeRect').classList.add('active');
+  $('btnModeBrush').classList.remove('active');
+  $('brushControls').classList.remove('visible');
+  $('roiSliders').classList.remove('visible');
+  $('roiInstruction').textContent = '在视频上按住拖动，框选水印位置';
+  $('drawHint').querySelector('p').textContent = '在视频上按住并拖动，框选水印区域';
+  videoCanvas.style.cursor = 'crosshair';
+  drawRoiOverlay();
+});
+
+$('btnModeBrush').addEventListener('click', () => {
+  state.selectionMode = 'brush';
+  $('btnModeBrush').classList.add('active');
+  $('btnModeRect').classList.remove('active');
+  $('brushControls').classList.add('visible');
+  $('roiSliders').classList.remove('visible');
+  $('roiInstruction').textContent = '在视频上用手指涂抹水印区域';
+  $('drawHint').querySelector('p').textContent = '在视频上涂抹水印区域';
+  $('drawHint').classList.remove('hidden');
+  videoCanvas.style.cursor = 'pointer';
+  drawRoiOverlay();
+});
+
+// Brush size slider
+$('brushSizeSlider').addEventListener('input', function() {
+  state.brushSize = parseInt(this.value);
+  $('brushSizeVal').textContent = this.value;
+});
+
 // Clear ROI
 $('btnClearRoi').addEventListener('click', () => {
   state.roi = null;
-  $('roiDisplay').textContent = 'Not selected';
+  $('roiDisplay').textContent = '未选择';
   $('roiDisplay').className = 'roi-display';
   $('roiSliders').classList.remove('visible');
+  // Clear brush mask
+  if (state.brushCtx) {
+    state.brushCtx.clearRect(0, 0, state.videoWidth, state.videoHeight);
+  }
   drawRoiOverlay();
   updateSteps();
   updateProcessButton();
