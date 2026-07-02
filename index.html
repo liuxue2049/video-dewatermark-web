@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Video Watermark Remover - LaMa AI</title>
+<title>Video Watermark Remover</title>
 <style>
 * { margin: 0; padding: 0; box-sizing: border-box; }
 body {
@@ -200,21 +200,18 @@ footer a { color: #3498db; text-decoration: none; }
 <div class="container">
   <header>
     <h1>Video Watermark Remover</h1>
-    <p>AI-powered watermark removal, all processing in your browser. No uploads.</p>
+    <p>Fast watermark removal, all processing in your browser. No uploads.</p>
   </header>
 
   <div class="steps">
     <div class="step active" id="step1">
-      <span class="step-num">1</span> Load Model
+      <span class="step-num">1</span> Open Video
     </div>
     <div class="step" id="step2">
-      <span class="step-num">2</span> Open Video
+      <span class="step-num">2</span> Select Area
     </div>
     <div class="step" id="step3">
-      <span class="step-num">3</span> Select Area
-    </div>
-    <div class="step" id="step4">
-      <span class="step-num">4</span> Process
+      <span class="step-num">3</span> Process
     </div>
   </div>
 
@@ -248,23 +245,15 @@ footer a { color: #3498db; text-decoration: none; }
 
     <!-- Right Panel -->
     <div class="panel">
-      <!-- Model Card -->
+      <!-- Algorithm Card -->
       <div class="card">
-        <h3>AI Model</h3>
+        <h3>Algorithm</h3>
         <div class="model-status" id="modelStatus">
-          <span class="dot dot-red"></span>
-          <span>Not loaded</span>
+          <span class="dot dot-green"></span>
+          <span>OpenCV Inpainting - Ready</span>
         </div>
-        <div class="progress-bar hidden" id="modelProgress">
-          <div class="fill"></div>
-        </div>
-        <div class="progress-text hidden" id="modelProgressText"></div>
-        <button class="btn btn-primary" id="btnLoadModel" style="margin-top: 8px;">
-          Load LaMa Model
-        </button>
-        <input type="file" id="modelFileInput" accept=".onnx" style="display:none">
         <p style="font-size: 11px; color: #666; margin-top: 6px;" id="modelHint">
-          ~88MB download, cached after first load
+          Fast image repair, no model download needed
         </p>
       </div>
 
@@ -332,24 +321,23 @@ footer a { color: #3498db; text-decoration: none; }
   </div>
 
   <footer>
-    <p>Video Watermark Remover &middot; Powered by <a href="https://github.com/saic-mdal/lama" target="_blank">LaMa</a> + <a href="https://onnxruntime.ai" target="_blank">ONNX Runtime Web</a></p>
+    <p>Video Watermark Remover &middot; Powered by <a href="https://opencv.org" target="_blank">OpenCV</a> Inpainting</p>
     <p style="margin-top: 4px;">All processing happens in your browser. No data is uploaded.</p>
   </footer>
 </div>
 
 <div class="toast" id="toast"></div>
 
-<!-- ONNX Runtime Web -->
-<script src="https://cdn.jsdelivr.net/npm/onnxruntime-web@1.19.0/dist/ort.min.js"></script>
+<!-- OpenCV.js -->
+<script async src="https://docs.opencv.org/4.9.0/opencv.js" onload="onOpenCvReady()"></script>
 
 <script>
 // ============================================================
 // App State
 // ============================================================
 const state = {
-  // Model
-  session: null,           // ONNX inference session
-  modelLoaded: false,
+  // OpenCV
+  cvReady: false,
 
   // Video
   video: null,             // HTMLVideoElement
@@ -410,156 +398,24 @@ function showToast(msg, isError = false) {
 // Step Indicator
 // ============================================================
 function setStep(n) {
-  for (let i = 1; i <= 4; i++) {
+  for (let i = 1; i <= 3; i++) {
     const el = $('step' + i);
     el.className = 'step' + (i < n ? ' done' : (i === n ? ' active' : ''));
   }
 }
 
 // ============================================================
-// Model Loading
+// OpenCV.js Initialization
 // ============================================================
-function readFileAsArrayBuffer(file) {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => resolve(reader.result);
-    reader.onerror = () => reject(reader.error);
-    reader.readAsArrayBuffer(file);
-  });
-}
-
-function pickModelFile() {
-  return new Promise((resolve, reject) => {
-    const input = $('modelFileInput');
-    input.value = '';
-    input.onchange = () => {
-      if (input.files && input.files[0]) {
-        resolve(input.files[0]);
-      } else {
-        reject(new Error('No file selected'));
-      }
-    };
-    input.click();
-  });
-}
-
-async function loadModel() {
-  const btn = $('btnLoadModel');
-  btn.disabled = true;
-  btn.textContent = 'Loading...';
-
-  const progress = $('modelProgress');
-  const progressText = $('modelProgressText');
-  progress.classList.remove('hidden');
-  progressText.classList.remove('hidden');
-
-  try {
-    // Configure ONNX Runtime
-    ort.env.wasm.wasmPaths = 'https://cdn.jsdelivr.net/npm/onnxruntime-web@1.19.0/dist/';
-
-    // Try WebGPU first, fall back to WASM
-    const providers = [];
-    try {
-      if (navigator.gpu) {
-        providers.push('webgpu');
-        console.log('[Model] Using WebGPU provider');
-      }
-    } catch(e) {}
-    providers.push('wasm');
-
-    const opts = {
-      executionProviders: providers,
-      graphOptimizationLevel: 'all',
-    };
-
-    let modelBuffer = null;
-    const isFileProtocol = window.location.protocol === 'file:';
-
-    if (isFileProtocol) {
-      // file:// protocol - fetch won't work, use file picker
-      progressText.textContent = 'Please select the model file (lama.onnx)...';
-      progress.querySelector('.fill').style.width = '10%';
-      console.log('[Model] file:// protocol detected, using file picker');
-      $('modelHint').textContent = 'Select lama.onnx from your device';
-
-      const file = await pickModelFile();
-      progressText.textContent = `Reading ${file.name} (${(file.size / 1024 / 1024).toFixed(1)}MB)...`;
-      progress.querySelector('.fill').style.width = '50%';
-
-      modelBuffer = await readFileAsArrayBuffer(file);
-      progress.querySelector('.fill').style.width = '90%';
-    } else {
-      // HTTP(S) protocol - use fetch with progress
-      progressText.textContent = 'Downloading model (~88MB)...';
-      progress.querySelector('.fill').style.width = '10%';
-
-      try {
-        const modelPath = './model/lama.onnx';
-        const response = await fetch(modelPath);
-        if (!response.ok) throw new Error(`HTTP ${response.status}`);
-
-        const contentLength = response.headers.get('content-length');
-        const total = contentLength ? parseInt(contentLength) : 88 * 1024 * 1024;
-        const reader = response.body.getReader();
-        const chunks = [];
-        let received = 0;
-
-        while (true) {
-          const { done, value } = await reader.read();
-          if (done) break;
-          chunks.push(value);
-          received += value.length;
-          const pct = Math.min(90, Math.round((received / total) * 90));
-          progress.querySelector('.fill').style.width = pct + '%';
-          progressText.textContent = `Downloading... ${(received / 1024 / 1024).toFixed(1)}MB / ${(total / 1024 / 1024).toFixed(0)}MB`;
-        }
-
-        const buf = new Uint8Array(received);
-        let off = 0;
-        for (const chunk of chunks) {
-          buf.set(chunk, off);
-          off += chunk.length;
-        }
-        modelBuffer = buf.buffer;
-      } catch (fetchErr) {
-        console.warn('[Model] Fetch failed, falling back to file picker:', fetchErr);
-        progressText.textContent = 'Download failed. Please select the model file manually...';
-        progress.querySelector('.fill').style.width = '10%';
-
-        const file = await pickModelFile();
-        progressText.textContent = `Reading ${file.name} (${(file.size / 1024 / 1024).toFixed(1)}MB)...`;
-        progress.querySelector('.fill').style.width = '50%';
-
-        modelBuffer = await readFileAsArrayBuffer(file);
-        progress.querySelector('.fill').style.width = '90%';
-      }
-    }
-
-    progressText.textContent = 'Initializing model...';
-    progress.querySelector('.fill').style.width = '95%';
-
-    // Create ONNX session
-    state.session = await ort.InferenceSession.create(modelBuffer, opts);
-
-    state.modelLoaded = true;
-    progress.querySelector('.fill').style.width = '100%';
-    progressText.textContent = 'Model ready!';
-
-    const statusEl = $('modelStatus');
-    statusEl.innerHTML = '<span class="dot dot-green"></span><span>LaMa AI - Ready</span>';
-
-    btn.textContent = 'Model Loaded';
-    showToast('Model loaded successfully!');
-    updateSteps();
+function onOpenCvReady() {
+  if (typeof cv !== 'undefined' && cv.Mat) {
+    state.cvReady = true;
+    console.log('[OpenCV] Ready');
+    showToast('OpenCV loaded!');
     updateProcessButton();
-
-  } catch (err) {
-    console.error('[Model] Load failed:', err);
-    showToast('Model load failed: ' + err.message, true);
-    btn.disabled = false;
-    btn.textContent = 'Retry Load Model';
-    progress.classList.add('hidden');
-    progressText.classList.add('hidden');
+  } else {
+    // OpenCV.js may need a moment to fully initialize
+    setTimeout(onOpenCvReady, 200);
   }
 }
 
@@ -890,7 +746,7 @@ function onRoiSliderChange() {
 // Video Processing (Inpainting)
 // ============================================================
 async function processVideo() {
-  if (!state.modelLoaded || !state.roi || !state.video) return;
+  if (!state.cvReady || !state.roi || !state.video) return;
 
   state.processing = true;
   state.cancelRequested = false;
@@ -1020,122 +876,43 @@ function seekToFrameAsync(frameIdx) {
 }
 
 async function runInpainting(frameData, mask) {
-  // Model expects fixed 512x512 input
-  const MODEL_SIZE = 512;
+  // Use OpenCV.js inpainting
   const w = state.videoWidth;
   const h = state.videoHeight;
 
-  // Resize frame to 512x512
-  const tempCanvas = document.createElement('canvas');
-  tempCanvas.width = MODEL_SIZE;
-  tempCanvas.height = MODEL_SIZE;
-  const tempCtx = tempCanvas.getContext('2d');
-  // Draw current frame onto temp canvas
-  tempCtx.drawImage(videoCanvas, 0, 0, w, h, 0, 0, MODEL_SIZE, MODEL_SIZE);
-  const resizedFrame = tempCtx.getImageData(0, 0, MODEL_SIZE, MODEL_SIZE);
+  // Create source image Mat from frame ImageData
+  const srcMat = cv.matFromImageData(frameData);
+  // Convert RGBA to RGB (inpaint works on 3-channel)
+  const rgbMat = new cv.Mat();
+  cv.cvtColor(srcMat, rgbMat, cv.COLOR_RGBA2RGB);
 
-  // Resize mask to 512x512
-  const maskCanvas = document.createElement('canvas');
-  maskCanvas.width = MODEL_SIZE;
-  maskCanvas.height = MODEL_SIZE;
-  const maskCtx = maskCanvas.getContext('2d');
-  // Draw original-size mask onto 512x512 canvas
-  const origMaskCanvas = document.createElement('canvas');
-  origMaskCanvas.width = w;
-  origMaskCanvas.height = h;
-  const omCtx = origMaskCanvas.getContext('2d');
-  const maskImgData = omCtx.createImageData(w, h);
-  for (let i = 0; i < mask.length; i++) {
-    maskImgData.data[i * 4] = mask[i];
-    maskImgData.data[i * 4 + 1] = mask[i];
-    maskImgData.data[i * 4 + 2] = mask[i];
-    maskImgData.data[i * 4 + 3] = 255;
-  }
-  omCtx.putImageData(maskImgData, 0, 0);
-  maskCtx.drawImage(origMaskCanvas, 0, 0, w, h, 0, 0, MODEL_SIZE, MODEL_SIZE);
-  const resizedMask = maskCtx.getImageData(0, 0, MODEL_SIZE, MODEL_SIZE);
+  // Create mask Mat from mask array (Uint8Array: 0=keep, 255=inpaint)
+  const maskMat = cv.matFromArray(h, w, cv.CV_8UC1, mask);
 
-  // Convert to tensors
-  const imageTensor = imageDataToTensor(resizedFrame);
-  const maskTensor = maskToTensor(resizedMask);
+  // Dilate mask slightly for better edge blending
+  const kernel = cv.Mat.ones(3, 3, cv.CV_8U);
+  const dilatedMask = new cv.Mat();
+  cv.dilate(maskMat, dilatedMask, kernel);
 
-  // Run inference with named inputs matching the model
-  const feeds = {
-    'image': imageTensor,
-    'mask': maskTensor,
-  };
+  // Run inpainting (Telea method, radius 3)
+  const resultMat = new cv.Mat();
+  cv.inpaint(rgbMat, dilatedMask, resultMat, 3, cv.INPAINT_TELEA);
 
-  const results = await state.session.run(feeds);
-  const outputTensor = results[Object.keys(results)[0]];
+  // Convert result back to ImageData (RGB -> RGBA)
+  const rgbaResult = new cv.Mat();
+  cv.cvtColor(resultMat, rgbaResult, cv.COLOR_RGB2RGBA);
+  const resultData = new ImageData(new Uint8ClampedArray(rgbaResult.data), w, h);
 
-  // Convert output tensor to ImageData at 512x512
-  const resultData = tensorToImageData(outputTensor, MODEL_SIZE, MODEL_SIZE);
+  // Clean up OpenCV Mats
+  srcMat.delete();
+  rgbMat.delete();
+  maskMat.delete();
+  kernel.delete();
+  dilatedMask.delete();
+  resultMat.delete();
+  rgbaResult.delete();
 
-  // Resize result back to original video dimensions
-  const resultCanvas = document.createElement('canvas');
-  resultCanvas.width = MODEL_SIZE;
-  resultCanvas.height = MODEL_SIZE;
-  const rCtx = resultCanvas.getContext('2d');
-  rCtx.putImageData(resultData, 0, 0);
-
-  const outCanvas = document.createElement('canvas');
-  outCanvas.width = w;
-  outCanvas.height = h;
-  const oCtx = outCanvas.getContext('2d');
-  oCtx.drawImage(resultCanvas, 0, 0, MODEL_SIZE, MODEL_SIZE, 0, 0, w, h);
-  return oCtx.getImageData(0, 0, w, h);
-}
-
-function imageDataToTensor(imageData) {
-  // Convert RGBA ImageData to float32 tensor [1, 3, H, W]
-  // Normalize to [0, 1] range
-  const { data, width, height } = imageData;
-  const tensor = new Float32Array(3 * height * width);
-  const hw = height * width;
-  for (let y = 0; y < height; y++) {
-    for (let x = 0; x < width; x++) {
-      const srcIdx = (y * width + x) * 4;
-      const dstIdx = y * width + x;
-      tensor[0 * hw + dstIdx] = data[srcIdx] / 255.0;       // R
-      tensor[1 * hw + dstIdx] = data[srcIdx + 1] / 255.0;   // G
-      tensor[2 * hw + dstIdx] = data[srcIdx + 2] / 255.0;   // B
-    }
-  }
-  return new ort.Tensor('float32', tensor, [1, 3, height, width]);
-}
-
-function maskToTensor(imageData) {
-  // Convert to single-channel float32 tensor [1, 1, H, W]
-  // Binary: 0 or 1
-  const { data, width, height } = imageData;
-  const tensor = new Float32Array(height * width);
-  for (let y = 0; y < height; y++) {
-    for (let x = 0; x < width; x++) {
-      const idx = y * width + x;
-      tensor[idx] = data[idx * 4] > 128 ? 1.0 : 0.0;
-    }
-  }
-  return new ort.Tensor('float32', tensor, [1, 1, height, width]);
-}
-
-function tensorToImageData(tensor, width, height) {
-  // Convert float32 tensor [1, 3, H, W] back to ImageData
-  // Denormalize from [0, 1] to [0, 255]
-  const data = tensor.data;
-  const hw = height * width;
-  const imgData = new ImageData(width, height);
-
-  for (let y = 0; y < height; y++) {
-    for (let x = 0; x < width; x++) {
-      const srcIdx = y * width + x;
-      const dstIdx = srcIdx * 4;
-      imgData.data[dstIdx] = Math.max(0, Math.min(255, data[0 * hw + srcIdx] * 255));
-      imgData.data[dstIdx + 1] = Math.max(0, Math.min(255, data[1 * hw + srcIdx] * 255));
-      imgData.data[dstIdx + 2] = Math.max(0, Math.min(255, data[2 * hw + srcIdx] * 255));
-      imgData.data[dstIdx + 3] = 255;
-    }
-  }
-  return imgData;
+  return resultData;
 }
 
 // ============================================================
@@ -1149,14 +926,13 @@ function formatTime(seconds) {
 
 function updateSteps() {
   let step = 1;
-  if (state.modelLoaded) step = 2;
-  if (state.video) step = 3;
-  if (state.roi) step = 4;
+  if (state.video) step = 2;
+  if (state.roi) step = 3;
   setStep(step);
 }
 
 function updateProcessButton() {
-  $('btnProcess').disabled = !(state.modelLoaded && state.video && state.roi);
+  $('btnProcess').disabled = !(state.cvReady && state.video && state.roi);
 }
 
 // ============================================================
@@ -1199,9 +975,6 @@ $('btnNext').addEventListener('click', () => {
     seekToFrame(state.currentFrame + 1);
   }
 });
-
-// Model loading
-$('btnLoadModel').addEventListener('click', loadModel);
 
 // Clear ROI
 $('btnClearRoi').addEventListener('click', () => {
